@@ -23,11 +23,22 @@ class _HomeScreenState extends State<HomeScreen> {
 
   Future<void> _loadNotes() async {
     setState(() => _isLoading = true);
-    final notes = await _noteService.getNotes();
-    setState(() {
-      _notes = notes;
-      _isLoading = false;
-    });
+    try {
+      final notes = await _noteService.getNotes();
+      if (mounted) {
+        setState(() {
+          _notes = notes;
+          _isLoading = false;
+        });
+      }
+    } catch (e) {
+      if (mounted) {
+        setState(() {
+          _notes = [];
+          _isLoading = false;
+        });
+      }
+    }
   }
 
   @override
@@ -45,7 +56,7 @@ class _HomeScreenState extends State<HomeScreen> {
                 mainAxisAlignment: MainAxisAlignment.spaceBetween,
                 children: [
                   const Text(
-                    'My\nNotes',
+                    'Simple\nNotes',
                     style: TextStyle(
                       color: Colors.white,
                       fontSize: 48,
@@ -54,12 +65,34 @@ class _HomeScreenState extends State<HomeScreen> {
                     ),
                   ),
                   Container(
-                    padding: const EdgeInsets.all(12),
+                    width: 56,
+                    height: 56,
+                    padding: const EdgeInsets.all(16),
                     decoration: BoxDecoration(
                       color: Colors.white.withOpacity(0.1),
                       shape: BoxShape.circle,
                     ),
-                    child: const Icon(Icons.more_horiz, color: Colors.white),
+                    child: GridView.count(
+                      padding: EdgeInsets.zero,
+                      crossAxisCount: 2,
+                      mainAxisSpacing: 4,
+                      crossAxisSpacing: 4,
+                      physics: const NeverScrollableScrollPhysics(),
+                      shrinkWrap: true,
+                      children: List.generate(
+                        4,
+                        (_) => Center(
+                          child: Container(
+                            width: 4,
+                            height: 4,
+                            decoration: const BoxDecoration(
+                              color: Colors.white,
+                              shape: BoxShape.circle,
+                            ),
+                          ),
+                        ),
+                      ),
+                    ),
                   ),
                 ],
               ),
@@ -79,7 +112,11 @@ class _HomeScreenState extends State<HomeScreen> {
               const SizedBox(height: 30),
               Expanded(
                 child: _isLoading
-                    ? const Center(child: CircularProgressIndicator())
+                    ? const Center(
+                        child: CircularProgressIndicator(
+                          color: Colors.white,
+                        ),
+                      )
                     : _notes.isEmpty
                         ? _buildEmptyState()
                         : MasonryGrid(
@@ -109,16 +146,36 @@ class _HomeScreenState extends State<HomeScreen> {
       child: Column(
         mainAxisAlignment: MainAxisAlignment.center,
         children: [
-          Icon(Icons.note_alt_outlined, size: 80, color: Colors.white.withOpacity(0.2)),
-          const SizedBox(height: 16),
-          Text(
-            'No notes yet',
-            style: TextStyle(color: Colors.white.withOpacity(0.5), fontSize: 20),
+          Container(
+            padding: const EdgeInsets.all(30),
+            decoration: BoxDecoration(
+              color: Colors.white.withOpacity(0.05),
+              shape: BoxShape.circle,
+            ),
+            child: Icon(
+              Icons.description_outlined,
+              size: 80,
+              color: Colors.white.withOpacity(0.2),
+            ),
           ),
-          const SizedBox(height: 8),
+          const SizedBox(height: 24),
+          const Text(
+            'Create your first note',
+            style: TextStyle(
+              color: Colors.white,
+              fontSize: 22,
+              fontWeight: FontWeight.w600,
+            ),
+          ),
+          const SizedBox(height: 12),
           Text(
-            'Tap + to create your first note',
-            style: TextStyle(color: Colors.white.withOpacity(0.3), fontSize: 14),
+            'It looks like you don\'t have any notes yet.\nTap the + button to get started.',
+            textAlign: TextAlign.center,
+            style: TextStyle(
+              color: Colors.white.withOpacity(0.4),
+              fontSize: 16,
+              height: 1.5,
+            ),
           ),
         ],
       ),
@@ -209,28 +266,53 @@ class MasonryGrid extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return SingleChildScrollView(
-      child: Wrap(
-        spacing: 15,
-        runSpacing: 15,
-        children: notes.map((note) {
-          bool isWide = notes.indexOf(note) % 3 == 2; // Every 3rd note is wide
-          return SizedBox(
-            width: isWide ? double.infinity : (MediaQuery.of(context).size.width - 55) / 2,
-            child: GestureDetector(
-              onTap: () => onNoteTap(note),
-              child: _NoteCard(
-                title: note.title,
-                subtitle: note.isChecklist ? '${note.checklistItems?.length ?? 0} items' : null,
-                color: Color(note.colorValue),
-                items: note.checklistItems,
-                isChecklist: note.isChecklist,
-                isWide: isWide,
+    return ListView.builder(
+      itemCount: (notes.length / 2).ceil(),
+      itemBuilder: (context, index) {
+        int firstIndex = index * 2;
+        int secondIndex = firstIndex + 1;
+
+        return Padding(
+          padding: const EdgeInsets.only(bottom: 15.0),
+          child: Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Expanded(
+                child: GestureDetector(
+                  onTap: () => onNoteTap(notes[firstIndex]),
+                  child: _NoteCard(
+                    title: notes[firstIndex].title,
+                    subtitle: notes[firstIndex].isChecklist
+                        ? '${notes[firstIndex].checklistItems?.length ?? 0} items'
+                        : null,
+                    color: Color(notes[firstIndex].colorValue),
+                    items: notes[firstIndex].checklistItems,
+                    isChecklist: notes[firstIndex].isChecklist,
+                  ),
+                ),
               ),
-            ),
-          );
-        }).toList(),
-      ),
+              if (secondIndex < notes.length) ...[
+                const SizedBox(width: 15),
+                Expanded(
+                  child: GestureDetector(
+                    onTap: () => onNoteTap(notes[secondIndex]),
+                    child: _NoteCard(
+                      title: notes[secondIndex].title,
+                      subtitle: notes[secondIndex].isChecklist
+                          ? '${notes[secondIndex].checklistItems?.length ?? 0} items'
+                          : null,
+                      color: Color(notes[secondIndex].colorValue),
+                      items: notes[secondIndex].checklistItems,
+                      isChecklist: notes[secondIndex].isChecklist,
+                    ),
+                  ),
+                ),
+              ] else
+                const Expanded(child: SizedBox()),
+            ],
+          ),
+        );
+      },
     );
   }
 }
@@ -241,9 +323,6 @@ class _NoteCard extends StatelessWidget {
   final Color color;
   final bool isChecklist;
   final List<String>? items;
-  final bool hasImage;
-  final bool isWide;
-  final IconData? icon;
 
   const _NoteCard({
     required this.title,
@@ -251,15 +330,11 @@ class _NoteCard extends StatelessWidget {
     required this.color,
     this.isChecklist = false,
     this.items,
-    this.hasImage = false,
-    this.isWide = false,
-    this.icon,
   });
 
   @override
   Widget build(BuildContext context) {
     return Container(
-      width: double.infinity,
       padding: const EdgeInsets.all(20),
       decoration: BoxDecoration(
         color: color,
@@ -271,21 +346,11 @@ class _NoteCard extends StatelessWidget {
           Row(
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
-              if (icon != null)
-                Container(
-                  padding: const EdgeInsets.all(8),
-                  decoration: const BoxDecoration(
-                    color: Colors.white,
-                    shape: BoxShape.circle,
-                  ),
-                  child: Icon(icon, size: 24),
-                )
-              else
-                Container(
-                  width: 30,
-                  height: 2,
-                  color: Colors.black.withOpacity(0.3),
-                ),
+              Container(
+                width: 30,
+                height: 2,
+                color: Colors.black.withOpacity(0.3),
+              ),
               Icon(Icons.favorite_border, color: Colors.black.withOpacity(0.4)),
             ],
           ),
@@ -304,30 +369,24 @@ class _NoteCard extends StatelessWidget {
             title,
             style: const TextStyle(
               color: Colors.black,
-              fontSize: 20,
+              fontSize: 18,
               fontWeight: FontWeight.bold,
             ),
           ),
           if (isChecklist && items != null && items!.isNotEmpty) ...[
-            const SizedBox(height: 15),
-            ...items!.take(3).map((item) => Padding(
-                  padding: const EdgeInsets.only(bottom: 8.0),
+            const SizedBox(height: 12),
+            ...items!.take(2).map((item) => Padding(
+                  padding: const EdgeInsets.only(bottom: 6.0),
                   child: Row(
                     children: [
-                      Icon(
-                        Icons.circle_outlined,
-                        size: 20,
-                        color: Colors.black.withOpacity(0.4),
-                      ),
-                      const SizedBox(width: 8),
+                      Icon(Icons.circle_outlined, size: 14, color: Colors.black.withOpacity(0.4)),
+                      const SizedBox(width: 6),
                       Expanded(
                         child: Text(
                           item,
                           maxLines: 1,
                           overflow: TextOverflow.ellipsis,
-                          style: TextStyle(
-                            color: Colors.black.withOpacity(0.6),
-                          ),
+                          style: TextStyle(fontSize: 12, color: Colors.black.withOpacity(0.6)),
                         ),
                       ),
                     ],
