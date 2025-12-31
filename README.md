@@ -1,4 +1,4 @@
-# Simple-Notes
+# Simple Notes
 A Simple Notes Application
 
 ## Download Latest Version
