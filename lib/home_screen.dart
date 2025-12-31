@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:intl/intl.dart';
 import 'note_detail_screen.dart';
 import 'note_model.dart';
 import 'note_service.dart';
@@ -26,7 +27,9 @@ class _HomeScreenState extends State<HomeScreen> {
     try {
       final notes = await _noteService.getNotes();
       
-      // Sort: Pinned notes first
+      // Sorting logic:
+      // 1. Pinned notes come first (limited to 3)
+      // 2. Others by created date descending
       notes.sort((a, b) {
         if (a.isPinned && !b.isPinned) return -1;
         if (!a.isPinned && b.isPinned) return 1;
@@ -75,82 +78,16 @@ class _HomeScreenState extends State<HomeScreen> {
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               const SizedBox(height: 20),
-              Row(
-                mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                children: [
-                  const Text(
-                    'Simple\nNotes',
-                    style: TextStyle(
-                      color: Colors.white,
-                      fontSize: 48,
-                      fontWeight: FontWeight.bold,
-                      height: 1.1,
-                    ),
-                  ),
-                  Container(
-                    width: 56,
-                    height: 56,
-                    padding: const EdgeInsets.all(16),
-                    decoration: BoxDecoration(
-                      color: Colors.white.withOpacity(0.1),
-                      shape: BoxShape.circle,
-                    ),
-                    child: GridView.count(
-                      padding: EdgeInsets.zero,
-                      crossAxisCount: 2,
-                      mainAxisSpacing: 4,
-                      crossAxisSpacing: 4,
-                      physics: const NeverScrollableScrollPhysics(),
-                      shrinkWrap: true,
-                      children: List.generate(
-                        4,
-                        (_) => Center(
-                          child: Container(
-                            width: 4,
-                            height: 4,
-                            decoration: const BoxDecoration(
-                              color: Colors.white,
-                              shape: BoxShape.circle,
-                            ),
-                          ),
-                        ),
-                      ),
-                    ),
-                  ),
-                ],
-              ),
+              _buildHeader(),
               const SizedBox(height: 30),
-              SingleChildScrollView(
-                scrollDirection: Axis.horizontal,
-                child: Row(
-                  children: [
-                    _buildCategoryChip('All', _notes.length.toString(), true),
-                    const SizedBox(width: 10),
-                    _buildCategoryChip('Important', null, false),
-                    const SizedBox(width: 10),
-                    _buildCategoryChip('To-do', null, false),
-                  ],
-                ),
-              ),
+              _buildCategories(),
               const SizedBox(height: 30),
               Expanded(
                 child: _isLoading
                     ? const Center(child: CircularProgressIndicator(color: Colors.white))
                     : _notes.isEmpty
                         ? _buildEmptyState()
-                        : MasonryGrid(
-                            notes: _notes,
-                            onNoteTap: (note) async {
-                              await Navigator.push(
-                                context,
-                                MaterialPageRoute(
-                                  builder: (context) => NoteDetailScreen(note: note),
-                                ),
-                              );
-                              _loadNotes();
-                            },
-                            onPinTap: _togglePin,
-                          ),
+                        : _buildNoteList(),
               ),
             ],
           ),
@@ -161,54 +98,140 @@ class _HomeScreenState extends State<HomeScreen> {
     );
   }
 
-  Widget _buildEmptyState() {
-    return Center(
-      child: Column(
-        mainAxisAlignment: MainAxisAlignment.center,
+  Widget _buildHeader() {
+    return Row(
+      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+      children: [
+        const Text(
+          'Your\nNotes',
+          style: TextStyle(
+            color: Colors.white,
+            fontSize: 48,
+            fontWeight: FontWeight.bold,
+            height: 1.1,
+          ),
+        ),
+        Container(
+          width: 56,
+          height: 56,
+          decoration: BoxDecoration(
+            color: Colors.white.withOpacity(0.1),
+            shape: BoxShape.circle,
+          ),
+          child: const Icon(Icons.more_horiz, color: Colors.white),
+        ),
+      ],
+    );
+  }
+
+  Widget _buildCategories() {
+    return SingleChildScrollView(
+      scrollDirection: Axis.horizontal,
+      child: Row(
         children: [
-          Container(
-            padding: const EdgeInsets.all(30),
-            decoration: BoxDecoration(
-              color: Colors.white.withOpacity(0.05),
-              shape: BoxShape.circle,
-            ),
-            child: Icon(Icons.description_outlined, size: 80, color: Colors.white.withOpacity(0.2)),
-          ),
-          const SizedBox(height: 24),
-          const Text(
-            'Create your first note',
-            style: TextStyle(color: Colors.white, fontSize: 22, fontWeight: FontWeight.w600),
-          ),
-          const SizedBox(height: 12),
-          Text(
-            'It looks like you don\'t have any notes yet.\nTap the + button to get started.',
-            textAlign: TextAlign.center,
-            style: TextStyle(color: Colors.white.withOpacity(0.4), fontSize: 16, height: 1.5),
-          ),
+          _buildCategoryChip('All (${_notes.length})', true),
+          const SizedBox(width: 10),
+          _buildCategoryChip('Pinned', false),
+          const SizedBox(width: 10),
+          _buildCategoryChip('Bookmarked', false),
         ],
       ),
     );
   }
 
-  Widget _buildCategoryChip(String label, String? count, bool isSelected) {
+  Widget _buildCategoryChip(String label, bool isSelected) {
     return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
+      padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
       decoration: BoxDecoration(
-        color: isSelected ? Colors.transparent : Colors.transparent,
+        color: isSelected ? const Color(0xFFFFD562) : Colors.white.withOpacity(0.05),
         borderRadius: BorderRadius.circular(30),
-        border: Border.all(color: Colors.white.withOpacity(0.3)),
       ),
-      child: Row(
+      child: Text(
+        label,
+        style: TextStyle(
+          color: isSelected ? Colors.black : Colors.white70,
+          fontSize: 16,
+          fontWeight: isSelected ? FontWeight.bold : FontWeight.normal,
+        ),
+      ),
+    );
+  }
+
+  Widget _buildNoteList() {
+    List<Note> pinnedNotes = _notes.where((n) => n.isPinned).toList();
+    List<Note> otherNotes = _notes.where((n) => !n.isPinned).toList();
+
+    return ListView(
+      children: [
+        // Pinned Notes Layout (Big Card style like image 2)
+        ...pinnedNotes.map((note) => Padding(
+              padding: const EdgeInsets.only(bottom: 20.0),
+              child: GestureDetector(
+                onTap: () => _openNote(note),
+                child: _BigNoteCard(
+                  note: note,
+                  onPinTap: () => _togglePin(note),
+                ),
+              ),
+            )),
+        
+        // Other Notes (Masonry-like Grid layout from image 1)
+        if (otherNotes.isNotEmpty)
+          ...List.generate((otherNotes.length / 2).ceil(), (index) {
+            int firstIndex = index * 2;
+            int secondIndex = firstIndex + 1;
+
+            return Padding(
+              padding: const EdgeInsets.only(bottom: 15.0),
+              child: Row(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Expanded(
+                    child: GestureDetector(
+                      onTap: () => _openNote(otherNotes[firstIndex]),
+                      child: _SmallNoteCard(
+                        note: otherNotes[firstIndex],
+                        onPinTap: () => _togglePin(otherNotes[firstIndex]),
+                      ),
+                    ),
+                  ),
+                  const SizedBox(width: 15),
+                  Expanded(
+                    child: secondIndex < otherNotes.length
+                        ? GestureDetector(
+                            onTap: () => _openNote(otherNotes[secondIndex]),
+                            child: _SmallNoteCard(
+                              note: otherNotes[secondIndex],
+                              onPinTap: () => _togglePin(otherNotes[secondIndex]),
+                            ),
+                          )
+                        : const SizedBox(),
+                  ),
+                ],
+              ),
+            );
+          }),
+        const SizedBox(height: 80),
+      ],
+    );
+  }
+
+  void _openNote(Note note) async {
+    await Navigator.push(
+      context,
+      MaterialPageRoute(builder: (context) => NoteDetailScreen(note: note)),
+    );
+    _loadNotes();
+  }
+
+  Widget _buildEmptyState() {
+    return Center(
+      child: Column(
+        mainAxisAlignment: MainAxisAlignment.center,
         children: [
-          Text(label, style: TextStyle(color: Colors.white, fontSize: 16, fontWeight: isSelected ? FontWeight.bold : FontWeight.normal)),
-          if (count != null) ...[
-            const SizedBox(width: 8),
-            Container(
-              padding: const EdgeInsets.all(6),
-              decoration: BoxDecoration(color: Colors.white.withOpacity(0.1), shape: BoxShape.circle),
-              child: Text(count, style: const TextStyle(color: Colors.white70, fontSize: 12)),
-            ),
-          ],
+          Icon(Icons.description_outlined, size: 80, color: Colors.white.withOpacity(0.2)),
+          const SizedBox(height: 24),
+          const Text('Create your first note', style: TextStyle(color: Colors.white, fontSize: 22)),
         ],
       ),
     );
@@ -243,89 +266,108 @@ class _HomeScreenState extends State<HomeScreen> {
   }
 }
 
-class MasonryGrid extends StatelessWidget {
-  final List<Note> notes;
-  final Function(Note) onNoteTap;
-  final Function(Note) onPinTap;
+class _BigNoteCard extends StatelessWidget {
+  final Note note;
+  final VoidCallback onPinTap;
 
-  const MasonryGrid({super.key, required this.notes, required this.onNoteTap, required this.onPinTap});
+  const _BigNoteCard({required this.note, required this.onPinTap});
 
   @override
   Widget build(BuildContext context) {
-    return ListView.builder(
-      itemCount: (notes.length / 2).ceil(),
-      itemBuilder: (context, index) {
-        int firstIndex = index * 2;
-        int secondIndex = firstIndex + 1;
-
-        return Padding(
-          padding: const EdgeInsets.only(bottom: 15.0),
-          child: Row(
-            crossAxisAlignment: CrossAxisAlignment.start,
+    return Container(
+      padding: const EdgeInsets.all(24),
+      decoration: BoxDecoration(
+        color: Color(note.colorValue),
+        borderRadius: BorderRadius.circular(40),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
-              Expanded(
-                child: GestureDetector(
-                  onTap: () => onNoteTap(notes[firstIndex]),
-                  child: _NoteCard(
-                    title: notes[firstIndex].title,
-                    subtitle: notes[firstIndex].isChecklist ? '${notes[firstIndex].checklistItems?.length ?? 0} items' : null,
-                    color: Color(notes[firstIndex].colorValue),
-                    items: notes[firstIndex].checklistItems,
-                    isChecklist: notes[firstIndex].isChecklist,
-                    isPinned: notes[firstIndex].isPinned,
-                    onPinTap: () => onPinTap(notes[firstIndex]),
+              Text(
+                note.title,
+                style: const TextStyle(fontSize: 28, fontWeight: FontWeight.bold),
+              ),
+              GestureDetector(
+                onTap: onPinTap,
+                child: Container(
+                  padding: const EdgeInsets.all(8),
+                  decoration: BoxDecoration(
+                    color: Colors.black.withOpacity(0.05),
+                    shape: BoxShape.circle,
                   ),
+                  child: const Icon(Icons.push_pin, size: 20),
                 ),
               ),
-              if (secondIndex < notes.length) ...[
-                const SizedBox(width: 15),
-                Expanded(
-                  child: GestureDetector(
-                    onTap: () => onNoteTap(notes[secondIndex]),
-                    child: _NoteCard(
-                      title: notes[secondIndex].title,
-                      subtitle: notes[secondIndex].isChecklist ? '${notes[secondIndex].checklistItems?.length ?? 0} items' : null,
-                      color: Color(notes[secondIndex].colorValue),
-                      items: notes[secondIndex].checklistItems,
-                      isChecklist: notes[secondIndex].isChecklist,
-                      isPinned: notes[secondIndex].isPinned,
-                      onPinTap: () => onPinTap(notes[secondIndex]),
-                    ),
-                  ),
-                ),
-              ] else const Expanded(child: SizedBox()),
             ],
           ),
-        );
-      },
+          const SizedBox(height: 15),
+          Text(
+            note.content,
+            maxLines: 3,
+            overflow: TextOverflow.ellipsis,
+            style: TextStyle(
+              fontSize: 16,
+              color: Colors.black.withOpacity(0.7),
+              height: 1.5,
+            ),
+          ),
+          const SizedBox(height: 20),
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                decoration: BoxDecoration(
+                  color: Colors.black.withOpacity(0.05),
+                  borderRadius: BorderRadius.circular(20),
+                ),
+                child: Row(
+                  children: [
+                    const Icon(Icons.access_time, size: 14),
+                    const SizedBox(width: 6),
+                    Text(DateFormat('dd MMM yyyy').format(note.createdAt)),
+                  ],
+                ),
+              ),
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                decoration: BoxDecoration(
+                  color: Colors.black.withOpacity(0.05),
+                  borderRadius: BorderRadius.circular(20),
+                ),
+                child: const Row(
+                  children: [
+                    Icon(Icons.archive_outlined, size: 14),
+                    const SizedBox(width: 6),
+                    Text('Archive'),
+                  ],
+                ),
+              ),
+            ],
+          ),
+        ],
+      ),
     );
   }
 }
 
-class _NoteCard extends StatelessWidget {
-  final String title;
-  final String? subtitle;
-  final Color color;
-  final bool isChecklist;
-  final List<String>? items;
-  final bool isPinned;
+class _SmallNoteCard extends StatelessWidget {
+  final Note note;
   final VoidCallback onPinTap;
 
-  const _NoteCard({
-    required this.title,
-    this.subtitle,
-    required this.color,
-    this.isChecklist = false,
-    this.items,
-    required this.isPinned,
-    required this.onPinTap,
-  });
+  const _SmallNoteCard({required this.note, required this.onPinTap});
 
   @override
   Widget build(BuildContext context) {
     return Container(
       padding: const EdgeInsets.all(20),
-      decoration: BoxDecoration(color: color, borderRadius: BorderRadius.circular(30)),
+      decoration: BoxDecoration(
+        color: Color(note.colorValue),
+        borderRadius: BorderRadius.circular(30),
+      ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
@@ -336,31 +378,37 @@ class _NoteCard extends StatelessWidget {
               GestureDetector(
                 onTap: onPinTap,
                 child: Icon(
-                  isPinned ? Icons.push_pin : Icons.push_pin_outlined,
-                  color: isPinned ? Colors.black : Colors.black.withOpacity(0.4),
+                  Icons.push_pin_outlined,
+                  color: Colors.black.withOpacity(0.4),
                   size: 20,
                 ),
               ),
             ],
           ),
           const SizedBox(height: 15),
-          if (subtitle != null) ...[
-            Text(subtitle!, style: TextStyle(color: Colors.black.withOpacity(0.4), fontSize: 12)),
-            const SizedBox(height: 4),
-          ],
-          Text(title, style: const TextStyle(color: Colors.black, fontSize: 18, fontWeight: FontWeight.bold)),
-          if (isChecklist && items != null && items!.isNotEmpty) ...[
+          Text(
+            note.title,
+            style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+          ),
+          if (note.isChecklist && note.checklistItems != null) ...[
             const SizedBox(height: 12),
-            ...items!.take(2).map((item) => Padding(
-              padding: const EdgeInsets.only(bottom: 6.0),
-              child: Row(
-                children: [
-                  Icon(Icons.circle_outlined, size: 14, color: Colors.black.withOpacity(0.4)),
-                  const SizedBox(width: 6),
-                  Expanded(child: Text(item, maxLines: 1, overflow: TextOverflow.ellipsis, style: TextStyle(fontSize: 12, color: Colors.black.withOpacity(0.6)))),
-                ],
-              ),
-            )),
+            ...note.checklistItems!.take(2).map((item) => Padding(
+                  padding: const EdgeInsets.only(bottom: 6.0),
+                  child: Row(
+                    children: [
+                      Icon(Icons.circle_outlined, size: 14, color: Colors.black.withOpacity(0.4)),
+                      const SizedBox(width: 6),
+                      Expanded(
+                        child: Text(
+                          item,
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          style: TextStyle(fontSize: 12, color: Colors.black.withOpacity(0.6)),
+                        ),
+                      ),
+                    ],
+                  ),
+                )),
           ],
         ],
       ),
