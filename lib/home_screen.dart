@@ -1,8 +1,34 @@
 import 'package:flutter/material.dart';
 import 'note_detail_screen.dart';
+import 'note_model.dart';
+import 'note_service.dart';
 
-class HomeScreen extends StatelessWidget {
+class HomeScreen extends StatefulWidget {
   const HomeScreen({super.key});
+
+  @override
+  State<HomeScreen> createState() => _HomeScreenState();
+}
+
+class _HomeScreenState extends State<HomeScreen> {
+  final NoteService _noteService = NoteService();
+  List<Note> _notes = [];
+  bool _isLoading = true;
+
+  @override
+  void initState() {
+    super.initState();
+    _loadNotes();
+  }
+
+  Future<void> _loadNotes() async {
+    setState(() => _isLoading = true);
+    final notes = await _noteService.getNotes();
+    setState(() {
+      _notes = notes;
+      _isLoading = false;
+    });
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -42,7 +68,7 @@ class HomeScreen extends StatelessWidget {
                 scrollDirection: Axis.horizontal,
                 child: Row(
                   children: [
-                    _buildCategoryChip('All', '23', true),
+                    _buildCategoryChip('All', _notes.length.toString(), true),
                     const SizedBox(width: 10),
                     _buildCategoryChip('Important', null, false),
                     const SizedBox(width: 10),
@@ -52,7 +78,22 @@ class HomeScreen extends StatelessWidget {
               ),
               const SizedBox(height: 30),
               Expanded(
-                child: MasonryGrid(),
+                child: _isLoading
+                    ? const Center(child: CircularProgressIndicator())
+                    : _notes.isEmpty
+                        ? _buildEmptyState()
+                        : MasonryGrid(
+                            notes: _notes,
+                            onNoteTap: (note) async {
+                              await Navigator.push(
+                                context,
+                                MaterialPageRoute(
+                                  builder: (context) => NoteDetailScreen(note: note),
+                                ),
+                              );
+                              _loadNotes();
+                            },
+                          ),
               ),
             ],
           ),
@@ -60,6 +101,27 @@ class HomeScreen extends StatelessWidget {
       ),
       floatingActionButtonLocation: FloatingActionButtonLocation.centerFloat,
       floatingActionButton: _buildCustomFAB(),
+    );
+  }
+
+  Widget _buildEmptyState() {
+    return Center(
+      child: Column(
+        mainAxisAlignment: MainAxisAlignment.center,
+        children: [
+          Icon(Icons.note_alt_outlined, size: 80, color: Colors.white.withOpacity(0.2)),
+          const SizedBox(height: 16),
+          Text(
+            'No notes yet',
+            style: TextStyle(color: Colors.white.withOpacity(0.5), fontSize: 20),
+          ),
+          const SizedBox(height: 8),
+          Text(
+            'Tap + to create your first note',
+            style: TextStyle(color: Colors.white.withOpacity(0.3), fontSize: 14),
+          ),
+        ],
+      ),
     );
   }
 
@@ -101,98 +163,73 @@ class HomeScreen extends StatelessWidget {
   }
 
   Widget _buildCustomFAB() {
-    return Container(
-      height: 70,
-      margin: const EdgeInsets.symmetric(horizontal: 40),
-      decoration: BoxDecoration(
-        color: Colors.white.withOpacity(0.1),
-        borderRadius: BorderRadius.circular(40),
-      ),
-      child: Row(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          Container(
-            width: 60,
-            height: 60,
-            margin: const EdgeInsets.all(5),
-            decoration: const BoxDecoration(
-              color: Colors.black,
-              shape: BoxShape.circle,
+    return GestureDetector(
+      onTap: () async {
+        await Navigator.push(
+          context,
+          MaterialPageRoute(builder: (context) => const NoteDetailScreen()),
+        );
+        _loadNotes();
+      },
+      child: Container(
+        height: 70,
+        margin: const EdgeInsets.symmetric(horizontal: 40),
+        decoration: BoxDecoration(
+          color: Colors.white.withOpacity(0.1),
+          borderRadius: BorderRadius.circular(40),
+        ),
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Container(
+              width: 60,
+              height: 60,
+              margin: const EdgeInsets.all(5),
+              decoration: const BoxDecoration(
+                color: Colors.black,
+                shape: BoxShape.circle,
+              ),
+              child: const Icon(Icons.add, color: Colors.white, size: 30),
             ),
-            child: const Icon(Icons.add, color: Colors.white, size: 30),
-          ),
-          const SizedBox(width: 10),
-          const Icon(Icons.mic_none, color: Colors.white, size: 30),
-          const SizedBox(width: 20),
-        ],
+            const SizedBox(width: 10),
+            const Icon(Icons.mic_none, color: Colors.white, size: 30),
+            const SizedBox(width: 20),
+          ],
+        ),
       ),
     );
   }
 }
 
 class MasonryGrid extends StatelessWidget {
+  final List<Note> notes;
+  final Function(Note) onNoteTap;
+
+  const MasonryGrid({super.key, required this.notes, required this.onNoteTap});
+
   @override
   Widget build(BuildContext context) {
     return SingleChildScrollView(
-      child: Column(
-        children: [
-          Row(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Expanded(
-                child: Column(
-                  children: [
-                    _NoteCard(
-                      title: 'Plan for\nThe Day',
-                      color: const Color(0xFFE98D6A),
-                      items: ['Buy food', 'GYM', 'Invest'],
-                      isChecklist: true,
-                    ),
-                    const SizedBox(height: 15),
-                    _NoteCard(
-                      title: 'List of Something',
-                      color: const Color(0xFFB8E698),
-                    ),
-                  ],
-                ),
+      child: Wrap(
+        spacing: 15,
+        runSpacing: 15,
+        children: notes.map((note) {
+          bool isWide = notes.indexOf(note) % 3 == 2; // Every 3rd note is wide
+          return SizedBox(
+            width: isWide ? double.infinity : (MediaQuery.of(context).size.width - 55) / 2,
+            child: GestureDetector(
+              onTap: () => onNoteTap(note),
+              child: _NoteCard(
+                title: note.title,
+                subtitle: note.isChecklist ? '${note.checklistItems?.length ?? 0} items' : null,
+                color: Color(note.colorValue),
+                items: note.checklistItems,
+                isChecklist: note.isChecklist,
+                isWide: isWide,
               ),
-              const SizedBox(width: 15),
-              Expanded(
-                child: Column(
-                  children: [
-                    _NoteCard(
-                      title: 'Image Notes',
-                      subtitle: 'update 2hr ago',
-                      color: const Color(0xFFFFD562),
-                      hasImage: true,
-                    ),
-                    const SizedBox(height: 15),
-                    _NoteCard(
-                      title: 'Image Funny',
-                      color: const Color(0xFFB6C7E6),
-                    ),
-                  ],
-                ),
-              ),
-            ],
-          ),
-          const SizedBox(height: 15),
-          GestureDetector(
-            onTap: () {
-              Navigator.push(
-                context,
-                MaterialPageRoute(builder: (context) => const NoteDetailScreen()),
-              );
-            },
-            child: _NoteCard(
-              title: 'My Lectures',
-              subtitle: '5 Notes',
-              color: const Color(0xFFF2EED1),
-              isWide: true,
-              icon: Icons.face,
             ),
-          ),
-        ],
+          );
+        }).toList(),
       ),
     );
   }
@@ -271,40 +308,31 @@ class _NoteCard extends StatelessWidget {
               fontWeight: FontWeight.bold,
             ),
           ),
-          if (isChecklist && items != null) ...[
+          if (isChecklist && items != null && items!.isNotEmpty) ...[
             const SizedBox(height: 15),
-            ...items!.map((item) => Padding(
+            ...items!.take(3).map((item) => Padding(
                   padding: const EdgeInsets.only(bottom: 8.0),
                   child: Row(
                     children: [
                       Icon(
-                        item == 'Buy food' ? Icons.check_circle : Icons.circle_outlined,
+                        Icons.circle_outlined,
                         size: 20,
                         color: Colors.black.withOpacity(0.4),
                       ),
                       const SizedBox(width: 8),
-                      Text(
-                        item,
-                        style: TextStyle(
-                          decoration: item == 'Buy food' ? TextDecoration.lineThrough : null,
-                          color: Colors.black.withOpacity(0.6),
+                      Expanded(
+                        child: Text(
+                          item,
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          style: TextStyle(
+                            color: Colors.black.withOpacity(0.6),
+                          ),
                         ),
                       ),
                     ],
                   ),
                 )),
-          ],
-          if (hasImage) ...[
-            const SizedBox(height: 15),
-            ClipRRect(
-              borderRadius: BorderRadius.circular(20),
-              child: Container(
-                height: 120,
-                width: double.infinity,
-                color: Colors.black.withOpacity(0.05),
-                child: const Icon(Icons.image, size: 50, color: Colors.black26),
-              ),
-            ),
           ],
         ],
       ),
