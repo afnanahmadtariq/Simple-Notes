@@ -25,6 +25,14 @@ class _HomeScreenState extends State<HomeScreen> {
     setState(() => _isLoading = true);
     try {
       final notes = await _noteService.getNotes();
+      
+      // Sort: Pinned notes first
+      notes.sort((a, b) {
+        if (a.isPinned && !b.isPinned) return -1;
+        if (!a.isPinned && b.isPinned) return 1;
+        return b.createdAt.compareTo(a.createdAt);
+      });
+
       if (mounted) {
         setState(() {
           _notes = notes;
@@ -39,6 +47,21 @@ class _HomeScreenState extends State<HomeScreen> {
         });
       }
     }
+  }
+
+  void _togglePin(Note note) async {
+    final pinnedCount = _notes.where((n) => n.isPinned).length;
+    
+    if (!note.isPinned && pinnedCount >= 3) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Only 3 notes can be pinned at a time'), duration: Duration(seconds: 2)),
+      );
+      return;
+    }
+
+    note.isPinned = !note.isPinned;
+    await _noteService.saveNote(note);
+    _loadNotes();
   }
 
   @override
@@ -112,11 +135,7 @@ class _HomeScreenState extends State<HomeScreen> {
               const SizedBox(height: 30),
               Expanded(
                 child: _isLoading
-                    ? const Center(
-                        child: CircularProgressIndicator(
-                          color: Colors.white,
-                        ),
-                      )
+                    ? const Center(child: CircularProgressIndicator(color: Colors.white))
                     : _notes.isEmpty
                         ? _buildEmptyState()
                         : MasonryGrid(
@@ -130,6 +149,7 @@ class _HomeScreenState extends State<HomeScreen> {
                               );
                               _loadNotes();
                             },
+                            onPinTap: _togglePin,
                           ),
               ),
             ],
@@ -152,30 +172,18 @@ class _HomeScreenState extends State<HomeScreen> {
               color: Colors.white.withOpacity(0.05),
               shape: BoxShape.circle,
             ),
-            child: Icon(
-              Icons.description_outlined,
-              size: 80,
-              color: Colors.white.withOpacity(0.2),
-            ),
+            child: Icon(Icons.description_outlined, size: 80, color: Colors.white.withOpacity(0.2)),
           ),
           const SizedBox(height: 24),
           const Text(
             'Create your first note',
-            style: TextStyle(
-              color: Colors.white,
-              fontSize: 22,
-              fontWeight: FontWeight.w600,
-            ),
+            style: TextStyle(color: Colors.white, fontSize: 22, fontWeight: FontWeight.w600),
           ),
           const SizedBox(height: 12),
           Text(
             'It looks like you don\'t have any notes yet.\nTap the + button to get started.',
             textAlign: TextAlign.center,
-            style: TextStyle(
-              color: Colors.white.withOpacity(0.4),
-              fontSize: 16,
-              height: 1.5,
-            ),
+            style: TextStyle(color: Colors.white.withOpacity(0.4), fontSize: 16, height: 1.5),
           ),
         ],
       ),
@@ -192,26 +200,13 @@ class _HomeScreenState extends State<HomeScreen> {
       ),
       child: Row(
         children: [
-          Text(
-            label,
-            style: TextStyle(
-              color: Colors.white,
-              fontSize: 16,
-              fontWeight: isSelected ? FontWeight.bold : FontWeight.normal,
-            ),
-          ),
+          Text(label, style: TextStyle(color: Colors.white, fontSize: 16, fontWeight: isSelected ? FontWeight.bold : FontWeight.normal)),
           if (count != null) ...[
             const SizedBox(width: 8),
             Container(
               padding: const EdgeInsets.all(6),
-              decoration: BoxDecoration(
-                color: Colors.white.withOpacity(0.1),
-                shape: BoxShape.circle,
-              ),
-              child: Text(
-                count,
-                style: const TextStyle(color: Colors.white70, fontSize: 12),
-              ),
+              decoration: BoxDecoration(color: Colors.white.withOpacity(0.1), shape: BoxShape.circle),
+              child: Text(count, style: const TextStyle(color: Colors.white70, fontSize: 12)),
             ),
           ],
         ],
@@ -222,30 +217,20 @@ class _HomeScreenState extends State<HomeScreen> {
   Widget _buildCustomFAB() {
     return GestureDetector(
       onTap: () async {
-        await Navigator.push(
-          context,
-          MaterialPageRoute(builder: (context) => const NoteDetailScreen()),
-        );
+        await Navigator.push(context, MaterialPageRoute(builder: (context) => const NoteDetailScreen()));
         _loadNotes();
       },
       child: Container(
         height: 70,
         margin: const EdgeInsets.symmetric(horizontal: 40),
-        decoration: BoxDecoration(
-          color: Colors.white.withOpacity(0.1),
-          borderRadius: BorderRadius.circular(40),
-        ),
+        decoration: BoxDecoration(color: Colors.white.withOpacity(0.1), borderRadius: BorderRadius.circular(40)),
         child: Row(
           mainAxisSize: MainAxisSize.min,
           children: [
             Container(
-              width: 60,
-              height: 60,
+              width: 60, height: 60,
               margin: const EdgeInsets.all(5),
-              decoration: const BoxDecoration(
-                color: Colors.black,
-                shape: BoxShape.circle,
-              ),
+              decoration: const BoxDecoration(color: Colors.black, shape: BoxShape.circle),
               child: const Icon(Icons.add, color: Colors.white, size: 30),
             ),
             const SizedBox(width: 10),
@@ -261,8 +246,9 @@ class _HomeScreenState extends State<HomeScreen> {
 class MasonryGrid extends StatelessWidget {
   final List<Note> notes;
   final Function(Note) onNoteTap;
+  final Function(Note) onPinTap;
 
-  const MasonryGrid({super.key, required this.notes, required this.onNoteTap});
+  const MasonryGrid({super.key, required this.notes, required this.onNoteTap, required this.onPinTap});
 
   @override
   Widget build(BuildContext context) {
@@ -282,12 +268,12 @@ class MasonryGrid extends StatelessWidget {
                   onTap: () => onNoteTap(notes[firstIndex]),
                   child: _NoteCard(
                     title: notes[firstIndex].title,
-                    subtitle: notes[firstIndex].isChecklist
-                        ? '${notes[firstIndex].checklistItems?.length ?? 0} items'
-                        : null,
+                    subtitle: notes[firstIndex].isChecklist ? '${notes[firstIndex].checklistItems?.length ?? 0} items' : null,
                     color: Color(notes[firstIndex].colorValue),
                     items: notes[firstIndex].checklistItems,
                     isChecklist: notes[firstIndex].isChecklist,
+                    isPinned: notes[firstIndex].isPinned,
+                    onPinTap: () => onPinTap(notes[firstIndex]),
                   ),
                 ),
               ),
@@ -298,17 +284,16 @@ class MasonryGrid extends StatelessWidget {
                     onTap: () => onNoteTap(notes[secondIndex]),
                     child: _NoteCard(
                       title: notes[secondIndex].title,
-                      subtitle: notes[secondIndex].isChecklist
-                          ? '${notes[secondIndex].checklistItems?.length ?? 0} items'
-                          : null,
+                      subtitle: notes[secondIndex].isChecklist ? '${notes[secondIndex].checklistItems?.length ?? 0} items' : null,
                       color: Color(notes[secondIndex].colorValue),
                       items: notes[secondIndex].checklistItems,
                       isChecklist: notes[secondIndex].isChecklist,
+                      isPinned: notes[secondIndex].isPinned,
+                      onPinTap: () => onPinTap(notes[secondIndex]),
                     ),
                   ),
                 ),
-              ] else
-                const Expanded(child: SizedBox()),
+              ] else const Expanded(child: SizedBox()),
             ],
           ),
         );
@@ -323,6 +308,8 @@ class _NoteCard extends StatelessWidget {
   final Color color;
   final bool isChecklist;
   final List<String>? items;
+  final bool isPinned;
+  final VoidCallback onPinTap;
 
   const _NoteCard({
     required this.title,
@@ -330,68 +317,50 @@ class _NoteCard extends StatelessWidget {
     required this.color,
     this.isChecklist = false,
     this.items,
+    required this.isPinned,
+    required this.onPinTap,
   });
 
   @override
   Widget build(BuildContext context) {
     return Container(
       padding: const EdgeInsets.all(20),
-      decoration: BoxDecoration(
-        color: color,
-        borderRadius: BorderRadius.circular(30),
-      ),
+      decoration: BoxDecoration(color: color, borderRadius: BorderRadius.circular(30)),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Row(
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
-              Container(
-                width: 30,
-                height: 2,
-                color: Colors.black.withOpacity(0.3),
+              Container(width: 30, height: 2, color: Colors.black.withOpacity(0.3)),
+              GestureDetector(
+                onTap: onPinTap,
+                child: Icon(
+                  isPinned ? Icons.push_pin : Icons.push_pin_outlined,
+                  color: isPinned ? Colors.black : Colors.black.withOpacity(0.4),
+                  size: 20,
+                ),
               ),
-              Icon(Icons.favorite_border, color: Colors.black.withOpacity(0.4)),
             ],
           ),
           const SizedBox(height: 15),
           if (subtitle != null) ...[
-            Text(
-              subtitle!,
-              style: TextStyle(
-                color: Colors.black.withOpacity(0.4),
-                fontSize: 12,
-              ),
-            ),
+            Text(subtitle!, style: TextStyle(color: Colors.black.withOpacity(0.4), fontSize: 12)),
             const SizedBox(height: 4),
           ],
-          Text(
-            title,
-            style: const TextStyle(
-              color: Colors.black,
-              fontSize: 18,
-              fontWeight: FontWeight.bold,
-            ),
-          ),
+          Text(title, style: const TextStyle(color: Colors.black, fontSize: 18, fontWeight: FontWeight.bold)),
           if (isChecklist && items != null && items!.isNotEmpty) ...[
             const SizedBox(height: 12),
             ...items!.take(2).map((item) => Padding(
-                  padding: const EdgeInsets.only(bottom: 6.0),
-                  child: Row(
-                    children: [
-                      Icon(Icons.circle_outlined, size: 14, color: Colors.black.withOpacity(0.4)),
-                      const SizedBox(width: 6),
-                      Expanded(
-                        child: Text(
-                          item,
-                          maxLines: 1,
-                          overflow: TextOverflow.ellipsis,
-                          style: TextStyle(fontSize: 12, color: Colors.black.withOpacity(0.6)),
-                        ),
-                      ),
-                    ],
-                  ),
-                )),
+              padding: const EdgeInsets.only(bottom: 6.0),
+              child: Row(
+                children: [
+                  Icon(Icons.circle_outlined, size: 14, color: Colors.black.withOpacity(0.4)),
+                  const SizedBox(width: 6),
+                  Expanded(child: Text(item, maxLines: 1, overflow: TextOverflow.ellipsis, style: TextStyle(fontSize: 12, color: Colors.black.withOpacity(0.6)))),
+                ],
+              ),
+            )),
           ],
         ],
       ),

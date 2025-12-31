@@ -8,6 +8,7 @@ class Note {
   int colorValue;
   bool isChecklist;
   List<String>? checklistItems;
+  bool isPinned;
 
   Note({
     required this.id,
@@ -17,6 +18,7 @@ class Note {
     required this.colorValue,
     this.isChecklist = false,
     this.checklistItems,
+    this.isPinned = false,
   });
 
   Map<String, dynamic> toMap() {
@@ -28,18 +30,22 @@ class Note {
       'colorValue': colorValue,
       'isChecklist': isChecklist,
       'checklistItems': checklistItems,
+      'isPinned': isPinned,
     };
   }
 
   factory Note.fromMap(Map<String, dynamic> map) {
     return Note(
-      id: map['id'],
-      title: map['title'],
-      content: map['content'],
-      createdAt: DateTime.parse(map['createdAt']),
-      colorValue: map['colorValue'],
+      id: map['id'] ?? '',
+      title: map['title'] ?? '',
+      content: map['content'] ?? '',
+      createdAt: map['createdAt'] != null 
+          ? DateTime.parse(map['createdAt']) 
+          : DateTime.now(),
+      colorValue: map['colorValue'] ?? 0xFFF2EED1,
       isChecklist: map['isChecklist'] ?? false,
       checklistItems: map['checklistItems'] != null ? List<String>.from(map['checklistItems']) : null,
+      isPinned: map['isPinned'] == true, // Explicitly check for true to avoid null issues
     );
   }
 
