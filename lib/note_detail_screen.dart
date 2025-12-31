@@ -15,16 +15,18 @@ class _NoteDetailScreenState extends State<NoteDetailScreen> {
   late TextEditingController _titleController;
   late TextEditingController _contentController;
   final NoteService _noteService = NoteService();
-  bool _isEditing = false;
+  
+  String? _currentNoteId;
+  bool _isModified = false;
+  late bool _isNewNote;
 
   @override
   void initState() {
     super.initState();
+    _isNewNote = widget.note == null;
+    _currentNoteId = widget.note?.id;
     _titleController = TextEditingController(text: widget.note?.title ?? '');
     _contentController = TextEditingController(text: widget.note?.content ?? '');
-    
-    // If opening an existing note, start in view mode (unless you want to edit immediately)
-    _isEditing = widget.note == null;
   }
 
   @override
@@ -35,8 +37,10 @@ class _NoteDetailScreenState extends State<NoteDetailScreen> {
   }
 
   void _saveNote() async {
+    _currentNoteId ??= DateTime.now().millisecondsSinceEpoch.toString();
+
     final note = Note(
-      id: widget.note?.id ?? DateTime.now().millisecondsSinceEpoch.toString(),
+      id: _currentNoteId!,
       title: _titleController.text.isEmpty ? 'Untitled' : _titleController.text,
       content: _contentController.text,
       createdAt: widget.note?.createdAt ?? DateTime.now(),
@@ -46,8 +50,18 @@ class _NoteDetailScreenState extends State<NoteDetailScreen> {
     );
 
     await _noteService.saveNote(note);
+    
     if (mounted) {
-      Navigator.pop(context);
+      if (_isNewNote) {
+        Navigator.pop(context);
+      } else {
+        setState(() {
+          _isModified = false;
+        });
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Note updated'), duration: Duration(seconds: 1)),
+        );
+      }
     }
   }
 
@@ -68,7 +82,11 @@ class _NoteDetailScreenState extends State<NoteDetailScreen> {
                     const SizedBox(height: 40),
                     TextField(
                       controller: _titleController,
-                      onChanged: (_) => setState(() => _isEditing = true),
+                      onChanged: (value) {
+                        setState(() {
+                          _isModified = value != (widget.note?.title ?? '');
+                        });
+                      },
                       style: const TextStyle(
                         fontSize: 48,
                         fontWeight: FontWeight.bold,
@@ -84,7 +102,11 @@ class _NoteDetailScreenState extends State<NoteDetailScreen> {
                     const SizedBox(height: 40),
                     TextField(
                       controller: _contentController,
-                      onChanged: (_) => setState(() => _isEditing = true),
+                      onChanged: (value) {
+                        setState(() {
+                          _isModified = value != (widget.note?.content ?? '');
+                        });
+                      },
                       style: const TextStyle(
                         fontSize: 18,
                         color: Colors.black,
@@ -120,7 +142,18 @@ class _NoteDetailScreenState extends State<NoteDetailScreen> {
             ),
           ),
           const Spacer(),
-          if (_isEditing)
+          if (_isNewNote)
+            ElevatedButton(
+              onPressed: _saveNote,
+              style: ElevatedButton.styleFrom(
+                backgroundColor: Colors.black,
+                foregroundColor: Colors.white,
+                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+                elevation: 0,
+              ),
+              child: const Text('Save'),
+            )
+          else if (_isModified)
             CircleAvatar(
               backgroundColor: Colors.black.withOpacity(0.05),
               child: IconButton(
@@ -142,25 +175,25 @@ class _NoteDetailScreenState extends State<NoteDetailScreen> {
                   const Positioned(
                     left: 0,
                     child: CircleAvatar(
-                      radius: 20,
+                      radius: 18,
                       backgroundColor: Colors.grey,
                       backgroundImage: NetworkImage('https://i.pravatar.cc/100?u=1'),
                     ),
                   ),
                   const Positioned(
-                    left: 25,
+                    left: 20,
                     child: CircleAvatar(
-                      radius: 20,
+                      radius: 18,
                       backgroundColor: Colors.grey,
                       backgroundImage: NetworkImage('https://i.pravatar.cc/100?u=2'),
                     ),
                   ),
                   Positioned(
-                    left: 50,
+                    left: 40,
                     child: CircleAvatar(
-                      radius: 20,
+                      radius: 18,
                       backgroundColor: Colors.white.withOpacity(0.5),
-                      child: const Icon(Icons.ios_share, color: Colors.black, size: 20),
+                      child: const Icon(Icons.ios_share, color: Colors.black, size: 16),
                     ),
                   ),
                 ],
