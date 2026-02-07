@@ -215,46 +215,48 @@ class _NoteDetailScreenState extends State<NoteDetailScreen> {
               ),
             )
           else ...[
-            const Text(
-              'Shared to',
-              style: TextStyle(color: Colors.black54, fontWeight: FontWeight.w500),
-            ),
-            const SizedBox(width: 12),
-            SizedBox(
-              width: 80,
-              height: 40,
-              child: Stack(
-                children: [
-                  const Positioned(
-                    left: 0,
-                    child: CircleAvatar(
-                      radius: 18,
-                      backgroundColor: Colors.grey,
-                      backgroundImage: NetworkImage('https://i.pravatar.cc/100?u=1'),
-                    ),
-                  ),
-                  const Positioned(
-                    left: 20,
-                    child: CircleAvatar(
-                      radius: 18,
-                      backgroundColor: Colors.grey,
-                      backgroundImage: NetworkImage('https://i.pravatar.cc/100?u=2'),
-                    ),
-                  ),
-                  Positioned(
-                    left: 40,
-                    child: CircleAvatar(
-                      radius: 18,
-                      backgroundColor: Colors.white.withValues(alpha: 0.5),
-                      child: const Icon(Icons.ios_share, color: Colors.black, size: 16),
-                    ),
-                  ),
-                ],
+            CircleAvatar(
+              backgroundColor: Colors.red.withOpacity(0.1),
+              child: IconButton(
+                icon: const Icon(Icons.delete_outline, color: Colors.red),
+                onPressed: _deleteNote,
               ),
             ),
           ],
         ],
       ),
     );
+  }
+
+  void _deleteNote() async {
+    if (_currentNoteId == null) return;
+    
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        backgroundColor: const Color(0xFF1E1E1E),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(24)),
+        title: const Text('Delete Note?', style: TextStyle(color: Colors.white)),
+        content: const Text('This action cannot be undone.', style: TextStyle(color: Colors.white70)),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context, false),
+            child: Text('Cancel', style: TextStyle(color: Colors.white.withOpacity(0.6))),
+          ),
+          TextButton(
+            onPressed: () => Navigator.pop(context, true),
+            style: TextButton.styleFrom(foregroundColor: Colors.red),
+            child: const Text('Delete'),
+          ),
+        ],
+      ),
+    );
+
+    if (confirmed == true && mounted) {
+      await _noteService.deleteNote(_currentNoteId!);
+      if (mounted) {
+        Navigator.pop(context);
+      }
+    }
   }
 }

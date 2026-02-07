@@ -17,6 +17,7 @@ class _HomeScreenState extends State<HomeScreen> {
   List<String> _categories = ['All'];
   String _selectedCategory = 'All';
   bool _isLoading = true;
+  bool _isDragging = false;
 
   @override
   void initState() {
@@ -121,25 +122,30 @@ class _HomeScreenState extends State<HomeScreen> {
     return Scaffold(
       backgroundColor: Colors.black,
       body: SafeArea(
-        child: Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 20.0),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              const SizedBox(height: 20),
-              _buildHeader(),
-              const SizedBox(height: 30),
-              _buildCategories(),
-              const SizedBox(height: 30),
-              Expanded(
-                child: _isLoading
-                    ? const Center(child: CircularProgressIndicator(color: Colors.white))
-                    : _notes.isEmpty
-                        ? _buildEmptyState()
-                        : _buildNoteList(),
+        child: Stack(
+          children: [
+            Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 20.0),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  const SizedBox(height: 20),
+                  _buildHeader(),
+                  const SizedBox(height: 30),
+                  _buildCategories(),
+                  const SizedBox(height: 30),
+                  Expanded(
+                    child: _isLoading
+                        ? const Center(child: CircularProgressIndicator(color: Colors.white))
+                        : _notes.isEmpty
+                            ? _buildEmptyState()
+                            : _buildNoteList(),
+                  ),
+                ],
               ),
-            ],
-          ),
+            ),
+            _buildDeleteTarget(),
+          ],
         ),
       ),
       floatingActionButtonLocation: FloatingActionButtonLocation.centerFloat,
@@ -269,12 +275,16 @@ class _HomeScreenState extends State<HomeScreen> {
       children: [
         ...pinnedNotes.map((note) => Padding(
               padding: const EdgeInsets.only(bottom: 20.0),
-              child: GestureDetector(
-                onTap: () => _openNote(note),
-                child: _BigNoteCard(
-                  note: note,
-                  onPinTap: () => _togglePin(note),
+              child: _wrapWithDraggable(
+                GestureDetector(
+                  onTap: () => _openNote(note),
+                  child: _BigNoteCard(
+                    note: note,
+                    onPinTap: () => _togglePin(note),
+                  ),
                 ),
+                note,
+                true,
               ),
             )),
         
@@ -289,23 +299,31 @@ class _HomeScreenState extends State<HomeScreen> {
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   Expanded(
-                    child: GestureDetector(
-                      onTap: () => _openNote(otherNotes[firstIndex]),
-                      child: _SmallNoteCard(
-                        note: otherNotes[firstIndex],
-                        onPinTap: () => _togglePin(otherNotes[firstIndex]),
+                    child: _wrapWithDraggable(
+                      GestureDetector(
+                        onTap: () => _openNote(otherNotes[firstIndex]),
+                        child: _SmallNoteCard(
+                          note: otherNotes[firstIndex],
+                          onPinTap: () => _togglePin(otherNotes[firstIndex]),
+                        ),
                       ),
+                      otherNotes[firstIndex],
+                      false,
                     ),
                   ),
                   const SizedBox(width: 15),
                   Expanded(
                     child: secondIndex < otherNotes.length
-                        ? GestureDetector(
-                            onTap: () => _openNote(otherNotes[secondIndex]),
-                            child: _SmallNoteCard(
-                              note: otherNotes[secondIndex],
-                              onPinTap: () => _togglePin(otherNotes[secondIndex]),
+                        ? _wrapWithDraggable(
+                            GestureDetector(
+                              onTap: () => _openNote(otherNotes[secondIndex]),
+                              child: _SmallNoteCard(
+                                note: otherNotes[secondIndex],
+                                onPinTap: () => _togglePin(otherNotes[secondIndex]),
+                              ),
                             ),
+                            otherNotes[secondIndex],
+                            false,
                           )
                         : const SizedBox(),
                   ),
@@ -315,6 +333,79 @@ class _HomeScreenState extends State<HomeScreen> {
           }),
         const SizedBox(height: 80),
       ],
+    );
+  }
+
+  Widget _wrapWithDraggable(Widget card, Note note, bool isBig) {
+    return LongPressDraggable<Note>(
+      data: note,
+      feedback: Material(
+        color: Colors.transparent,
+        child: SizedBox(
+          width: MediaQuery.of(context).size.width * (isBig ? 0.9 : 0.45),
+          child: Opacity(
+            opacity: 0.8,
+            child: card,
+          ),
+        ),
+      ),
+      onDragStarted: () => setState(() => _isDragging = true),
+      onDragEnd: (details) => setState(() => _isDragging = false),
+      onDraggableCanceled: (velocity, offset) => setState(() => _isDragging = false),
+      child: card,
+    );
+  }
+
+  Widget _buildDeleteTarget() {
+    return AnimatedPositioned(
+      duration: const Duration(milliseconds: 300),
+      top: _isDragging ? 20 : -100,
+      left: 0,
+      right: 0,
+      child: Center(
+        child: DragTarget<Note>(
+          onWillAccept: (data) => true,
+          onAccept: (note) async {
+            await _noteService.deleteNote(note.id);
+            _loadData();
+            setState(() => _isDragging = false);
+            ScaffoldMessenger.of(context).showSnackBar(
+              const SnackBar(
+                content: Text('Note deleted'),
+                backgroundColor: Colors.red,
+                duration: Duration(seconds: 1),
+              ),
+            );
+          },
+          builder: (context, candidateData, rejectedData) {
+            final isOver = candidateData.isNotEmpty;
+            return Container(
+              width: 80,
+              height: 80,
+              decoration: BoxDecoration(
+                color: isOver ? Colors.red : Colors.red.withOpacity(0.2),
+                shape: BoxShape.circle,
+                border: Border.all(
+                  color: isOver ? Colors.white : Colors.red,
+                  width: 2,
+                ),
+                boxShadow: isOver ? [
+                  BoxShadow(
+                    color: Colors.red.withOpacity(0.5),
+                    blurRadius: 20,
+                    spreadRadius: 5,
+                  )
+                ] : [],
+              ),
+              child: Icon(
+                Icons.delete_outline,
+                color: isOver ? Colors.white : Colors.red,
+                size: 30,
+              ),
+            );
+          },
+        ),
+      ),
     );
   }
 
