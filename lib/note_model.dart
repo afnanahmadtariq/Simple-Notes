@@ -9,6 +9,7 @@ class Note {
   bool isChecklist;
   List<String>? checklistItems;
   bool isPinned;
+  String category;
 
   Note({
     required this.id,
@@ -19,6 +20,7 @@ class Note {
     this.isChecklist = false,
     this.checklistItems,
     this.isPinned = false,
+    this.category = 'All',
   });
 
   Map<String, dynamic> toMap() {
@@ -31,6 +33,7 @@ class Note {
       'isChecklist': isChecklist,
       'checklistItems': checklistItems,
       'isPinned': isPinned,
+      'category': category,
     };
   }
 
@@ -45,7 +48,8 @@ class Note {
       colorValue: map['colorValue'] ?? 0xFFF2EED1,
       isChecklist: map['isChecklist'] ?? false,
       checklistItems: map['checklistItems'] != null ? List<String>.from(map['checklistItems']) : null,
-      isPinned: map['isPinned'] == true, // Explicitly check for true to avoid null issues
+      isPinned: map['isPinned'] == true,
+      category: map['category'] ?? 'All',
     );
   }
 

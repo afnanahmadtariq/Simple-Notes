@@ -4,8 +4,9 @@ import 'note_service.dart';
 
 class NoteDetailScreen extends StatefulWidget {
   final Note? note;
+  final String? initialCategory;
 
-  const NoteDetailScreen({super.key, this.note});
+  const NoteDetailScreen({super.key, this.note, this.initialCategory});
 
   @override
   State<NoteDetailScreen> createState() => _NoteDetailScreenState();
@@ -19,6 +20,8 @@ class _NoteDetailScreenState extends State<NoteDetailScreen> {
   String? _currentNoteId;
   bool _isModified = false;
   late bool _isNewNote;
+  late String _selectedCategory;
+  List<String> _availableCategories = ['All'];
 
   @override
   void initState() {
@@ -27,6 +30,20 @@ class _NoteDetailScreenState extends State<NoteDetailScreen> {
     _currentNoteId = widget.note?.id;
     _titleController = TextEditingController(text: widget.note?.title ?? '');
     _contentController = TextEditingController(text: widget.note?.content ?? '');
+    _selectedCategory = widget.note?.category ?? widget.initialCategory ?? 'All';
+    _loadCategories();
+  }
+
+  Future<void> _loadCategories() async {
+    final categories = await _noteService.getCategories();
+    if (mounted) {
+      setState(() {
+        _availableCategories = categories;
+        if (!_availableCategories.contains(_selectedCategory)) {
+          _selectedCategory = 'All';
+        }
+      });
+    }
   }
 
   @override
@@ -44,9 +61,11 @@ class _NoteDetailScreenState extends State<NoteDetailScreen> {
       title: _titleController.text.isEmpty ? 'Untitled' : _titleController.text,
       content: _contentController.text,
       createdAt: widget.note?.createdAt ?? DateTime.now(),
-      colorValue: widget.note?.colorValue ?? const Color(0xFFF2EED1).value,
+      colorValue: widget.note?.colorValue ?? const Color(0xFFF2EED1).toARGB32(),
       isChecklist: widget.note?.isChecklist ?? false,
       checklistItems: widget.note?.checklistItems,
+      isPinned: widget.note?.isPinned ?? false,
+      category: _selectedCategory,
     );
 
     await _noteService.saveNote(note);
@@ -79,12 +98,14 @@ class _NoteDetailScreenState extends State<NoteDetailScreen> {
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    const SizedBox(height: 40),
+                    const SizedBox(height: 20),
+                    _buildCategoryPicker(),
+                    const SizedBox(height: 20),
                     TextField(
                       controller: _titleController,
                       onChanged: (value) {
                         setState(() {
-                          _isModified = value != (widget.note?.title ?? '');
+                          _isModified = true;
                         });
                       },
                       style: const TextStyle(
@@ -104,7 +125,7 @@ class _NoteDetailScreenState extends State<NoteDetailScreen> {
                       controller: _contentController,
                       onChanged: (value) {
                         setState(() {
-                          _isModified = value != (widget.note?.content ?? '');
+                          _isModified = true;
                         });
                       },
                       style: const TextStyle(
@@ -129,13 +150,45 @@ class _NoteDetailScreenState extends State<NoteDetailScreen> {
     );
   }
 
+  Widget _buildCategoryPicker() {
+    return SingleChildScrollView(
+      scrollDirection: Axis.horizontal,
+      child: Row(
+        children: _availableCategories.map((cat) {
+          final isSelected = _selectedCategory == cat;
+          return Padding(
+            padding: const EdgeInsets.only(right: 8.0),
+            child: FilterChip(
+              label: Text(cat),
+              selected: isSelected,
+              onSelected: (selected) {
+                setState(() {
+                  _selectedCategory = cat;
+                  _isModified = true;
+                });
+              },
+              selectedColor: Colors.black,
+              labelStyle: TextStyle(
+                color: isSelected ? Colors.white : Colors.black,
+                fontWeight: isSelected ? FontWeight.bold : FontWeight.normal,
+              ),
+              backgroundColor: Colors.black.withValues(alpha: 0.05),
+              checkmarkColor: Colors.white,
+              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+            ),
+          );
+        }).toList(),
+      ),
+    );
+  }
+
   Widget _buildTopBar(BuildContext context) {
     return Padding(
       padding: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 8),
       child: Row(
         children: [
           CircleAvatar(
-            backgroundColor: Colors.black.withOpacity(0.05),
+            backgroundColor: Colors.black.withValues(alpha: 0.05),
             child: IconButton(
               icon: const Icon(Icons.arrow_back_ios_new, color: Colors.black, size: 20),
               onPressed: () => Navigator.pop(context),
@@ -155,7 +208,7 @@ class _NoteDetailScreenState extends State<NoteDetailScreen> {
             )
           else if (_isModified)
             CircleAvatar(
-              backgroundColor: Colors.black.withOpacity(0.05),
+              backgroundColor: Colors.black.withValues(alpha: 0.05),
               child: IconButton(
                 icon: const Icon(Icons.check, color: Colors.black),
                 onPressed: _saveNote,
@@ -192,7 +245,7 @@ class _NoteDetailScreenState extends State<NoteDetailScreen> {
                     left: 40,
                     child: CircleAvatar(
                       radius: 18,
-                      backgroundColor: Colors.white.withOpacity(0.5),
+                      backgroundColor: Colors.white.withValues(alpha: 0.5),
                       child: const Icon(Icons.ios_share, color: Colors.black, size: 16),
                     ),
                   ),
