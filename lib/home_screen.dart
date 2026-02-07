@@ -26,7 +26,7 @@ class _HomeScreenState extends State<HomeScreen> {
     setState(() => _isLoading = true);
     try {
       final notes = await _noteService.getNotes();
-      
+
       // Sorting logic:
       // 1. Pinned notes come first (limited to 3)
       // 2. Others by created date descending
@@ -256,9 +256,9 @@ class _HomeScreenState extends State<HomeScreen> {
               decoration: const BoxDecoration(color: Colors.black, shape: BoxShape.circle),
               child: const Icon(Icons.add, color: Colors.white, size: 30),
             ),
-            const SizedBox(width: 10),
-            const Icon(Icons.mic_none, color: Colors.white, size: 30),
-            const SizedBox(width: 20),
+            // const SizedBox(width: 10),
+            // const Icon(Icons.mic_none, color: Colors.white, size: 30),
+            // const SizedBox(width: 20),
           ],
         ),
       ),
